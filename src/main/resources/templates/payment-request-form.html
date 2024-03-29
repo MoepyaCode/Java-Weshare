@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html
+        xmlns:th="http://www.thymeleaf.org"
+        xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+        layout:decorate="~{/layout.html}">
+<head></head>
+<body>
+<div layout:fragment="contents">
+    <h2>Submit a Payment Request for the Following Expense</h2>
+
+    <table>
+        <tr>
+            <td> Date </td>
+            <td id="expense_date" > <span th:text="${expense.date}" th:remove="tag"> </span> </td>
+        </tr>
+        <tr>
+            <td> Description </td>
+            <td id="expense_description"> <span th:text="${expense.description}" th:remove="tag"> </span> </td>
+        </tr>
+        <tr>
+            <td> Amount </td>
+            <td id="expense_amount"> <span th:text="${expense.amount}" th:remove="tag"> </span> </td>
+        </tr>
+    </table>
+    <br>
+
+    <div id="previous_requests" th:unless="${#lists.isEmpty(requests)}">
+        <h2> Previous Payment Requests for this Expense </h2>
+        <table class="table">
+            <thead>
+                <tr class="table-header-requests">
+                    <td><u>Who</u></td>
+                    <td><u>Due</u></td>
+                    <td><u>Paid?</u></td>
+                    <td><u>Amount</u></td>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:block th:each="request: ${requests}">
+                    <td th:id="'paymentrequest_who_'+${request.id}"
+                        th:text="${request.personWhoShouldPayBack.getName()}"
+                        data-label="Who"/>
+                    <td th:id="'paymentrequest_date_'+${request.id}"
+                        th:text="${request.dueDate}"
+                        data-label="Due"/>
+                    <td th:id="'paymentrequest_paid_'+${request.id}"
+                        data-label="Paid?">
+                        <span th:if="${request.isPaid}"
+                              th:text="Yes"/>
+                        <span th:unless="${request.isPaid}"
+                              th:text="No"/>
+                    </td>
+                    <td th:id="'paymentrequest_amount_'+${request.id}"
+                        th:text="${request.amountToPay}"
+                        data-label="Amount"/>
+                </tr>
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td><b>Total Amount of Payments Requested</b></td>
+                    <td><b><span th:id="total_paymentrequests"
+                        th:text="${expense.totalAmountOfPaymentsRequested}"/></b></td>
+                </tr>
+            </tfoot>
+        </table>
+        <br>
+    </div>
+    <br>
+
+    <form method="post" action="/payment-request.action" enctype="application/x-www-form-urlencoded">
+        <input type="hidden" id="expense_UUID" name="expense_UUID" th:value="${expense.id}">
+        <label for="email">The recipient's email
+            <br>
+            <input type="email" id="email" name="email" required autofocus />
+            <br>
+        </label>
+        <br>
+
+        <label for="amount">The amount they should pay (Maximum
+            <span th:text="${expense.totalAmountAvailableForPaymentRequests()}" th:remove="tag"> </span>
+            <br>
+            <input type="currency" id="amount" name="amount" th:max="${expense.totalAmountAvailableForPaymentRequests()}" required>
+            <br>
+        </label>
+        <br>
+
+        <label for="amount">By when must this claim be settled (dd/mm/yyyy)
+            <br>
+            <input type="date" id="due_date" name="due-date" required>
+            <br>
+        </label>
+        <br>
+
+        <input id="submit" type="submit" value="Submit"/>
+    </form>
+
+    <!-- Script to format if they have Paid or not -->
+    <script>
+        const hasPaid = document.querySelectorAll('span[id="paid"]');
+        for (let i = 0; i < hasPaid.length; i++ ) {
+            let s = hasPaid.item(i).textContent;
+            if (s === "false"){
+                hasPaid.item(i).textContent = "No";
+            } else {
+                hasPaid.item(i).textContent = "Yes";
+            }
+        }
+    </script>
+
+    <!-- Script for better currency formatting -->
+    <script>
+        const currencyInput = document.querySelectorAll('input[type="currency"]');
+        const currency = 'ZAR';
+        const options = {
+            maximumFractionDigits: 2,
+            currency: currency,
+            style: "currency",
+            currencyDisplay: "symbol",
+        };
+
+        for (let i = 0; i < currencyInput.length; i++ ) {
+            onBlur({
+                target: currencyInput[i]
+            })
+
+            currencyInput[i].addEventListener('focus', onFocus)
+            currencyInput[i].addEventListener('blur', onBlur)
+
+            /**
+             * Takes the maximum between the current value
+             * and the assigned maximum attribute
+             * and sets that as the value for the target of e
+             * @param e the element
+             */
+            function maximum(e){
+                if (e.target.hasAttribute("max")){
+                    const max_value = localStringToNumber(e.target.getAttribute("max"));
+                    if (localStringToNumber( e.target.value ) > max_value){
+                        e.target.value = max_value;
+                    }
+                }
+            }
+
+            /**
+             * Formats the input value to have currency formatting, with two decimals
+             * controlled by the options variable
+             * @param e the element
+             */
+            function format(e) {
+                const value = e.target.value;
+
+                e.target.value = ( value || localStringToNumber(value) === 0 ) ?
+                    localStringToNumber( value ).toLocaleString( undefined, options ) :
+                    ''
+            }
+            /**
+             * String to number, Strips all characters, excluding '.' and numbers
+             * @param s string to be converted
+             * @returns {number} a number derived from that string
+             */
+            function localStringToNumber( s ) {
+                return Number( String( s ).replace( /[^0-9.-]+/g, "" ) )
+            }
+
+            /**
+             * What gets done when you focus on the input
+             * Makes the value into a raw number, removing all formatting
+             * @param e the element
+             */
+            function onFocus( e ) {
+                const value = e.target.value;
+                e.target.value = value ? localStringToNumber( value ) : ''
+            }
+
+            /**
+             * What gets done when you click away from the input
+             * Formats the value in the input.
+             * @param e the element
+             */
+            function onBlur( e ) {
+                maximum(e);
+                format(e);
+            }
+        }
+    </script>
+</div>
+</body>
+</html>
